@@ -1,0 +1,42 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./www:/var/www/html
+      - ./services/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./services/nginx/sites:/etc/nginx/sites-available
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - php71
+    networks:
+      - default
+
+  php71:
+    build:
+      context: ./services/php71
+      dockerfile: Dockerfile
+    container_name: php71
+    volumes:
+      - ./www:/var/www/html
+      - ./services/php71/php.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./services/php71/php-fpm.conf:/usr/local/etc/php-fpm.d/zz-custom.conf
+      - ./logs/php:/var/log/php
+    environment:
+      - XDEBUG_MODE=debug
+      - XDEBUG_CONFIG="client_host=host.docker.internal"
+    networks:
+      - default
+    expose:
+      - "9000"
+    cap_add:
+      - SYS_PTRACE
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+  
