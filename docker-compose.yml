@@ -11,8 +11,15 @@ services:
       - ./logs/nginx:/var/log/nginx
     depends_on:
       - php71
-    networks:
-      - default
+    # 保留代理忽略+DNS配置
+    environment:
+      - NO_PROXY=*
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+    dns:
+      - 223.5.5.5
+      - 8.8.8.8
+      - 114.114.114.114
 
   php71:
     build:
@@ -27,16 +34,19 @@ services:
     environment:
       - XDEBUG_MODE=debug
       - XDEBUG_CONFIG="client_host=host.docker.internal"
-    networks:
-      - default
+      - NO_PROXY=*
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
     expose:
       - "9000"
     cap_add:
       - SYS_PTRACE
+    dns:
+      - 223.5.5.5
+      - 8.8.8.8
+      - 114.114.114.114
 
+# 删除自定义app-network，使用Compose默认网络（自动生成xxx_default）
 networks:
   default:
     driver: bridge
-    ipam:
-      driver: default
-  

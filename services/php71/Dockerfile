@@ -155,6 +155,10 @@ COPY php-fpm.conf /usr/local/etc/php-fpm.d/zz-custom.conf
 RUN chown developer:developer /usr/local/etc/php/conf.d/custom.ini && \
     chown developer:developer /usr/local/etc/php-fpm.d/zz-custom.conf
 
+RUN mkdir -p /var/www/html/opc/src/image/cache \
+    && chown -R www-data:www-data /var/www/html/opc/src/image/cache \
+    && chmod -R 775 /var/www/html/opc/src/image/cache
+
 # 设置工作目录
 WORKDIR /var/www/html
 
