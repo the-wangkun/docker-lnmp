@@ -3,3 +3,4 @@
 logs/*
 www/*
 services/nginx/sites/*
+!services/nginx/sites/default.conf
