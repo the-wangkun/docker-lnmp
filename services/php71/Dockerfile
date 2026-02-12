@@ -1,4 +1,3 @@
-# services/php71/Dockerfile
 FROM php:7.1-fpm
 
 # 设置时区和基础环境
@@ -90,10 +89,10 @@ RUN apt-get update && \
     libmcrypt-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# 创建 Xdebug 日志目录并设置权限
-RUN mkdir -p /var/log/xdebug && \
-    mkdir -p /tmp/xdebug && \
-    chmod -R 777 /var/log/xdebug /tmp/xdebug
+# 创建 Xdebug 日志目录并设置权限（归属www-data）
+RUN mkdir -p /var/log/xdebug /tmp/xdebug && \
+    chown -R www-data:www-data /var/log/xdebug /tmp/xdebug && \
+    chmod -R 755 /var/log/xdebug /tmp/xdebug
     
 # 从源码编译安装Xdebug 2.9.8
 RUN cd /tmp && \
@@ -122,51 +121,48 @@ RUN cd /tmp && \
 RUN curl -sS https://install.phpcomposer.com/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
     composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/
 
-# 创建非root用户
-RUN useradd -m -u 1000 -s /bin/bash developer && \
-    echo "developer:developer" | chpasswd && \
-    mkdir -p /home/developer/.composer && \
-    chown -R developer:developer /home/developer
-
-# 创建项目目录并设置权限
+# ========== 关键修改1：统一目录和权限 ==========
+# 1. 创建项目根目录
 RUN mkdir -p /var/www/html && \
-    chown -R developer:developer /var/www/html && \
+    chown -R www-data:www-data /var/www/html && \
     chmod 755 /var/www/html
 
-# 创建日志目录
-RUN mkdir -p /var/log/php && \
-    chown -R developer:developer /var/log/php && \
-    chmod 777 /var/log/php
+# 2. 提前创建所有需要写入的目录（包括报错的debug_sql）
+RUN mkdir -p /var/www/html/opc/src/image/cache \
+    # 核心：创建debug_sql所在的cache目录及子目录
+    && mkdir -p /var/www/html/opc/src/system/cache/debug_sql \
+    # PHP日志目录
+    && mkdir -p /var/log/php \
+    # PHP-FPM运行目录
+    && mkdir -p /var/run/php-fpm \
+    # 统一设置所有目录归属www-data
+    && chown -R www-data:www-data \
+        /var/www/html/opc/src/image/cache \
+        /var/www/html/opc/src/system/cache \
+        /var/log/php \
+        /var/run/php-fpm \
+    && chmod 755 /var/log/php \
+    && chmod 755 /var/run/php-fpm
 
-# 创建PHP-FPM运行目录（关键！）
-RUN mkdir -p /var/run/php-fpm && \
-    chown -R developer:developer /var/run/php-fpm && \
-    chmod 777 /var/run/php-fpm
+# ========== 关键修改2：复制配置文件并确保权限 ==========
+# 复制PHP自定义配置
+COPY php.ini /usr/local/etc/php/conf.d/custom.ini
+# 复制PHP-FPM配置（关键：里面指定运行用户为www-data）
+COPY php-fpm.conf /usr/local/etc/php-fpm.d/zz-custom.conf
+# 确保配置文件归属root，权限644（符合安全规范）
+RUN chown root:root /usr/local/etc/php/conf.d/custom.ini /usr/local/etc/php-fpm.d/zz-custom.conf && \
+    chmod 644 /usr/local/etc/php/conf.d/custom.ini /usr/local/etc/php-fpm.d/zz-custom.conf
 
 # 清理
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man/* /usr/share/doc/*
 
-# ===== 关键修改：先复制配置文件，再切换用户 =====
-# 复制配置文件（此时还是root用户）
-COPY php.ini /usr/local/etc/php/conf.d/custom.ini
-COPY php-fpm.conf /usr/local/etc/php-fpm.d/zz-custom.conf
-# 确保配置文件权限正确
-RUN chown developer:developer /usr/local/etc/php/conf.d/custom.ini && \
-    chown developer:developer /usr/local/etc/php-fpm.d/zz-custom.conf
-
-RUN mkdir -p /var/www/html/opc/src/image/cache \
-    && chown -R www-data:www-data /var/www/html/opc/src/image/cache \
-    && chmod -R 775 /var/www/html/opc/src/image/cache
-
 # 设置工作目录
 WORKDIR /var/www/html
-
-# 切换到非root用户
-# USER developer
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD php -r "echo 'OK';" || exit 1
 
+# 启动PHP-FPM（前台运行）
 CMD ["php-fpm", "-F"]

@@ -1,6 +1,7 @@
 .idea
 .vscode
 logs/*
-www/*
 services/nginx/sites/*
 !services/nginx/sites/default.conf
+www/*
+!www/index.php
